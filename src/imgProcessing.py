@@ -41,46 +41,59 @@ class img_processor:
         #crop image to probable height of license plate
         warped_img = cv_image[rows-400:cols-400]
         
-        #color masks
-        # For detecting license plates 
+        #color masks and cropping     
+        #blue for car detection 
+        lowerBlue = np.array([0, 0, 0],dtype = "uint8") 
+        upperBlue = np.array([255,30, 0],dtype = "uint8") 
+        blueCarMask = cv2.inRange(warped_img, lowerBlue, upperBlue)
+        blueCarMask = cv2.medianBlur(blueCarMask, 5)
+        blueCarMask = cv2.erode(blueCarMask, None, iterations=2)
+        blueCarOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueCarMask)
+        #Crop the image to the bounding box of the blue car
+        blueCarBinary = self.make_binary_image(blueCarOutput)
+        carCroppedImg=self.crop_image_only_outside_using_mask(blueCarBinary,warped_img,tol=0)
+        # White for detecting license plates 
         lowerWhite = np.array([100, 100, 100],dtype = "uint8")
         upperWhite = np.array([200, 200, 200],dtype = "uint8")
-        whiteMask = cv2.inRange(warped_img, lowerWhite, upperWhite)
+        whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
         whiteMask = cv2.medianBlur(whiteMask, 5)
         whiteMask = cv2.erode(whiteMask, None, iterations=2)
-        #grass green
-        lowerGreen = np.array([10,70,10],dtype = "uint8")
-        upperGreen = np.array([70,210,30],dtype = "uint8")
-        greenMask = cv2.inRange(warped_img, lowerGreen, upperGreen)
-        #red for cross walk
-        lowerRed = np.array([0, 0, 255-20],dtype = "uint8")
-        upperRed = np.array([255, 20, 255],dtype = "uint8")
-        redMask = cv2.inRange(warped_img, lowerRed, upperRed)
-        #blue for car detection TODO: Adjust values to exclude background!
-        lowerBlue = np.array([0, 0, 0],dtype = "uint8") #OG 0 0 0 
-        upperBlue = np.array([255, 30, 20],dtype = "uint8") #OG 255, 30,20
-        blueMask = cv2.inRange(warped_img, lowerBlue, upperBlue)
-        #apply masks for lane detection
-        greenOutput = cv2.bitwise_and(warped_img, warped_img, mask = greenMask)
-        redOutput = cv2.bitwise_and(warped_img, warped_img, mask = redMask)
-        whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
-        blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
+        #Crop the image to the bounding box of the stripe on the back of the car
+        whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
+        whiteBinary = self.make_binary_image(whiteOutput)
+        whiteCroppedImg=self.crop_image_only_outside_using_mask(whiteBinary,carCroppedImg,tol=0)
+        whiteCroppedBinary = self.make_binary_image(whiteCroppedImg)
+        whiteCroppedBinary = cv2.bitwise_not(whiteCroppedBinary)
 
-        blueBinary = self.make_binary_image(blueOutput)
-        carCroppedImg=self.crop_image_only_outside_using_mask(blueBinary,warped_img,tol=0)
-
-        cv2.imshow("cropped",carCroppedImg)
+        cv2.imshow("white cropped",whiteCroppedImg)
         cv2.waitKey(3)
-        cv2.imshow("bluebin",blueBinary)
-        cv2.waitKey(3) 
-        cv2.imshow("blue",blueOutput)
-        cv2.waitKey(3) 
+        cv2.imshow("white output",whiteOutput)
+        #invert white binary image so parking info and license are 1
+        #Finding boundary boxes for P#, license, and QR code
+        self.boundary_finder(whiteCroppedImg,whiteCroppedBinary)
+        
+        # #Use to detect plates with a mask - issue: QR code and P-# come up as blue aswell 
+        # #blue for plate detection
+        # lowerPlateBlue = np.array([0, 0, 0],dtype = "uint8") 
+        # upperPlateBlue = np.array([255,50, 30],dtype = "uint8") #255,70,50
+        # bluePlateMask = cv2.inRange(whiteCroppedImg, lowerPlateBlue, upperPlateBlue)
+        # bluePlateOutput = cv2.bitwise_and(whiteCroppedImg, whiteCroppedImg, mask = bluePlateMask) 
+        # cv2.imshow("plate mask",bluePlateOutput)
+        # cv2.waitKey(3)  
+        # bluePlateBinary = self.make_binary_image(bluePlateOutput)
+        # cv2.imshow("plate binary",bluePlateBinary)
+        # cv2.waitKey(3) 
+
+        # bluePlateBinary = self.make_binary_image(bluePlateOutput)
+        # plateCroppedImg=self.crop_image_only_outside_using_mask(bluePlateBinary,whiteCroppedImg,tol=0)
+        # cv2.imshow("plate cropped",plateCroppedImg)
+        # cv2.waitKey(3)
 
         #self.boundary_finder(grayCarImg,binaryCarImg)
 
     
     #find the boundaries of the license plate using connected component analysis
-    def boundary_finder(self,grayImg,binaryImg):
+    def boundary_finder(self,img,binaryImg):
         #Find connected components
         labelImg = measure.label(binaryImg)
 
@@ -98,7 +111,7 @@ class img_processor:
 
             ##FOLLOWING IS NON-RESTRICTIVE METHOD
             min_row, min_col, max_row, max_col = region.bbox
-            rectBorder = cv2.rectangle(grayImg, (min_col, min_row), (max_col, max_row), (255,0,0), 2)
+            rectBorder = cv2.rectangle(img, (min_col, min_row), (max_col, max_row), (255,0,0), 2)
             print("I found a rectangle!")
 
             # ##FOLLOWING IS MORE RESTRICTIVE METHOD
@@ -110,13 +123,12 @@ class img_processor:
             # if region_height >= min_height and region_height <= max_height and region_width >= min_width and region_width <= max_width and region_width > region_height:
             #     plate_like_objects.append(binaryImg[min_row:max_row,min_col:max_col])
             #     plate_objects_cordinates.append((min_row, min_col,max_row, max_col))
-            #     cv2.rectangle(grayImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
+            #     cv2.rectangle(img, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             #     print("I found a rectangle!")
+        cv2.imshow("rectangles",img)
+        cv2.waitKey(3) 
         cv2.imshow("binary",binaryImg)
-        cv2.waitKey(3) 
-        print(binaryImg)
-        cv2.imshow("rectangles",grayImg)
-        cv2.waitKey(3) 
+        cv2.waitKey(3)
 
     def crop_image_only_outside_using_mask(self,des_mask,img,tol=0):
         # img is 2D image data
@@ -132,7 +144,7 @@ class img_processor:
     def make_binary_image(self,img):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        threshold_value = threshold_otsu(grayImg)
+        threshold_value = threshold_otsu(grayImg) #CHANGE this function throws an error if the mask is empty
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
         return binaryImg
 
