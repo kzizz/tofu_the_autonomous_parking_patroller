@@ -123,13 +123,17 @@ class img_processor:
             else:
                 for region in regions:
                     min_row, min_col, max_row, max_col = region.bbox
-                    cropped_img = blueImage[min_row-5:max_row+5,min_col-5:max_col+5].copy()
-                    numberImages.append(cropped_img)
+                    cropped_img = blueImage[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                    numberImages.append(cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
                 cv2.imshow("first number",numberImages[0])
+                cv2.imwrite("firstNumber.png",numberImages[0])
                 cv2.imshow("second number",numberImages[1])
+                cv2.imwrite("secondNumber.png",numberImages[1])
                 cv2.imshow("third number",numberImages[2])
+                cv2.imwrite("thirdNumber.png",numberImages[2])
                 cv2.imshow("fourth number",numberImages[3])
+                cv2.imwrite("fourthNumber.png",numberImages[3])
 
         
     #find the boundaries of the license plate using connected component analysis
