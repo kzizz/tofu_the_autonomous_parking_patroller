@@ -49,47 +49,44 @@ class img_processor:
         blueCarMask = cv2.medianBlur(blueCarMask, 5)
         blueCarMask = cv2.erode(blueCarMask, None, iterations=2)
         blueCarOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueCarMask)
-        #Crop the image to the bounding box of the blue car
-        blueCarBinary = self.make_binary_image(blueCarOutput)
-        carCroppedImg=self.crop_image_only_outside_using_mask(blueCarBinary,warped_img,tol=0)
-        # White for detecting license plates 
-        lowerWhite = np.array([100, 100, 100],dtype = "uint8")
-        upperWhite = np.array([200, 200, 200],dtype = "uint8")
-        whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
-        whiteMask = cv2.medianBlur(whiteMask, 5)
-        whiteMask = cv2.erode(whiteMask, None, iterations=2)
-        #Crop the image to the bounding box of the stripe on the back of the car
-        whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
-        whiteBinary = self.make_binary_image(whiteOutput)
-        whiteCroppedImg=self.crop_image_only_outside_using_mask(whiteBinary,carCroppedImg,tol=0)
-        whiteCroppedBinary = self.make_binary_image(whiteCroppedImg)
-        whiteCroppedBinary = cv2.bitwise_not(whiteCroppedBinary)
 
-        cv2.imshow("white cropped",whiteCroppedImg)
-        cv2.waitKey(3)
-        cv2.imshow("white output",whiteOutput)
-        #invert white binary image so parking info and license are 1
-        #Finding boundary boxes for P#, license, and QR code
-        self.boundary_finder(whiteCroppedImg,whiteCroppedBinary)
-        
-        # #Use to detect plates with a mask - issue: QR code and P-# come up as blue aswell 
-        # #blue for plate detection
-        # lowerPlateBlue = np.array([0, 0, 0],dtype = "uint8") 
-        # upperPlateBlue = np.array([255,50, 30],dtype = "uint8") #255,70,50
-        # bluePlateMask = cv2.inRange(whiteCroppedImg, lowerPlateBlue, upperPlateBlue)
-        # bluePlateOutput = cv2.bitwise_and(whiteCroppedImg, whiteCroppedImg, mask = bluePlateMask) 
-        # cv2.imshow("plate mask",bluePlateOutput)
-        # cv2.waitKey(3)  
-        # bluePlateBinary = self.make_binary_image(bluePlateOutput)
-        # cv2.imshow("plate binary",bluePlateBinary)
-        # cv2.waitKey(3) 
 
-        # bluePlateBinary = self.make_binary_image(bluePlateOutput)
-        # plateCroppedImg=self.crop_image_only_outside_using_mask(bluePlateBinary,whiteCroppedImg,tol=0)
-        # cv2.imshow("plate cropped",plateCroppedImg)
-        # cv2.waitKey(3)
+        if (len(np.nonzero(blueCarOutput)[0])):            
+            print(blueCarOutput.size)
+            print("in the blue loop")
+            #print(len(np.nonzero(blueCarOutput)[0]))
+            #Crop the image to the bounding box of the blue car
+            blueCarBinary = self.make_binary_image(blueCarOutput)
+            cv2.imshow("blueCarOutput", blueCarOutput)
+            carCroppedImg=self.crop_image_only_outside_using_mask(blueCarBinary,warped_img,tol=0)
+            # White for detecting license plates 
+            lowerWhite = np.array([100, 100, 100],dtype = "uint8")
+            upperWhite = np.array([200, 200, 200],dtype = "uint8")
+            whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
+            whiteMask = cv2.medianBlur(whiteMask, 5)
+            whiteMask = cv2.erode(whiteMask, None, iterations=2)
+            #Crop the image to the bounding box of the stripe on the back of the car
+            whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
+            print(len(np.nonzero(whiteOutput)[0]))
+            if (len(np.nonzero(whiteOutput)[0])):          
+                lowerWhite = np.array([100, 100, 100],dtype = "uint8")
+                upperWhite = np.array([200, 200, 200],dtype = "uint8")
+                whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
+                whiteMask = cv2.medianBlur(whiteMask, 5)
+                whiteMask = cv2.erode(whiteMask, None, iterations=2)
+                #Crop the image to the bounding box of the stripe on the back of the car
+                whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
+                whiteBinary = self.make_binary_image(whiteOutput)
+                whiteCroppedImg=self.crop_image_only_outside_using_mask(whiteBinary,carCroppedImg,tol=0)
+                whiteCroppedBinary = self.make_binary_image(whiteCroppedImg)
+                whiteCroppedBinary = cv2.bitwise_not(whiteCroppedBinary)
 
-        #self.boundary_finder(grayCarImg,binaryCarImg)
+                cv2.imshow("white cropped",whiteCroppedImg)
+                cv2.waitKey(3)
+                cv2.imshow("white output",whiteOutput)
+                #invert white binary image so parking info and license are 1
+                #Finding boundary boxes for P#, license, and QR code
+                self.boundary_finder(whiteCroppedImg,whiteCroppedBinary)
 
     
     #find the boundaries of the license plate using connected component analysis
@@ -98,8 +95,8 @@ class img_processor:
         labelImg = measure.label(binaryImg)
 
         #Find the expected dimmensions of a license plate
-        plate_dimensions = (0.3*labelImg.shape[0], 0.6*labelImg.shape[0], 0.04*labelImg.shape[1], 0.12*labelImg.shape[1])
-        min_height, max_height, min_width, max_width = plate_dimensions
+        # plate_dimensions = (0.3*labelImg.shape[0], 0.6*labelImg.shape[0], 0.04*labelImg.shape[1], 0.12*labelImg.shape[1])
+        # min_height, max_height, min_width, max_width = plate_dimensions
         plate_objects_cordinates = []
         plate_like_objects = []
 
@@ -144,8 +141,9 @@ class img_processor:
     def make_binary_image(self,img):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        threshold_value = threshold_otsu(grayImg) #CHANGE this function throws an error if the mask is empty
+        threshold_value = threshold_otsu(grayImg) #CHANGE this function throws an error if the greyImg is empty
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
+
         return binaryImg
 
 
