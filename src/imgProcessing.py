@@ -10,7 +10,8 @@ import rospy
 from geometry_msgs.msg import Twist
 import matplotlib.pyplot as plt
 import cv2
-import matplotlib.patches as patches
+import datetime
+import operator
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -18,6 +19,7 @@ from skimage.io import imread
 from skimage.filters import threshold_otsu
 from skimage import measure
 from skimage.measure import regionprops
+
 
 class img_processor:
 
@@ -115,7 +117,9 @@ class img_processor:
     def findLicensePlate(self,blueImage): 
             croppedBlueCarBinary = self.make_binary_image(blueImage)
             regions = self.boundary_finder(blueImage,croppedBlueCarBinary)
-            numberImages = []
+            #Define an empty dictionary to associate image with the order it apears on license
+            numberImages = {}
+
             if(len(regions) == 0):
                 print("no license plates found")
             elif(len(regions) != 4):
@@ -123,17 +127,27 @@ class img_processor:
             else:
                 for region in regions:
                     min_row, min_col, max_row, max_col = region.bbox
+                    print("minimum column")
+                    print(min_col)
                     cropped_img = blueImage[min_row-3:max_row+3,min_col-3:max_col+3].copy()
-                    numberImages.append(cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
+                    numberImages[min_col]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
-                cv2.imshow("first number",numberImages[0])
-                cv2.imwrite("firstNumber.png",numberImages[0])
-                cv2.imshow("second number",numberImages[1])
-                cv2.imwrite("secondNumber.png",numberImages[1])
-                cv2.imshow("third number",numberImages[2])
-                cv2.imwrite("thirdNumber.png",numberImages[2])
-                cv2.imshow("fourth number",numberImages[3])
-                cv2.imwrite("fourthNumber.png",numberImages[3])
+                #sort the images based on their min_col
+                sortedNumberImages = sorted(numberImages.keys())
+                print("Number Images")
+                print(sortedNumberImages)
+                print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
+
+                timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+                cv2.imshow("first number",numberImages[sortedNumberImages[0]])
+                cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+                cv2.imshow("second number",numberImages[sortedNumberImages[1]])
+                cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
+                cv2.imshow("third number",numberImages[sortedNumberImages[2]])
+                cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
+                cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
+                cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+
 
         
     #find the boundaries of the license plate using connected component analysis
