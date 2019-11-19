@@ -78,41 +78,6 @@ class img_processor:
             carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
             self.findLicensePlate(carCroppedImgBlue)
             
-        # if (bluePercentage > 0.02):            
-        #     # print(blueCarOutput.size)
-        #     # print("in the blue loop")
-        #     #print(len(np.nonzero(blueCarOutput)[0]))
-        #     #Crop the image to the bounding box of the blue car
-        #     blueCarBinary = self.make_binary_image(blueCarOutput)
-        #     # cv2.imshow("blueCarOutput", blueCarOutput)
-        #     carCroppedImg=self.crop_image_only_outside_using_mask(blueCarBinary,warped_img,tol=0)
-        #     # White for detecting license plates 
-        #     lowerWhite = np.array([100, 100, 100],dtype = "uint8")
-        #     upperWhite = np.array([200, 200, 200],dtype = "uint8")
-        #     whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
-        #     whiteMask = cv2.medianBlur(whiteMask, 5)
-        #     whiteMask = cv2.erode(whiteMask, None, iterations=2)
-        #     #Crop the image to the bounding box of the stripe on the back of the car
-        #     whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
-        #     if (len(np.nonzero(whiteOutput)[0])):          
-        #         lowerWhite = np.array([100, 100, 100],dtype = "uint8")
-        #         upperWhite = np.array([200, 200, 200],dtype = "uint8")
-        #         whiteMask = cv2.inRange(carCroppedImg, lowerWhite, upperWhite)
-        #         whiteMask = cv2.medianBlur(whiteMask, 5)
-        #         whiteMask = cv2.erode(whiteMask, None, iterations=2)
-        #         #Crop the image to the bounding box of the stripe on the back of the car
-        #         whiteOutput = cv2.bitwise_and(carCroppedImg, carCroppedImg, mask = whiteMask)
-        #         whiteBinary = self.make_binary_image(whiteOutput)
-        #         whiteCroppedImg=self.crop_image_only_outside_using_mask(whiteBinary,carCroppedImg,tol=0)
-        #         whiteCroppedBinary = self.make_binary_image(whiteCroppedImg)
-        #         whiteCroppedBinary = cv2.bitwise_not(whiteCroppedBinary)
-
-        #         cv2.imshow("white cropped",whiteCroppedImg)
-        #         cv2.waitKey(3)
-        #         cv2.imshow("white output",whiteOutput)
-        #         #invert white binary image so parking info and license are 1
-        #         #Finding boundary boxes for P#, license, and QR code
-        #         self.boundary_finder(whiteCroppedImg,whiteCroppedBinary)
 
     def findLicensePlate(self,blueImage): 
             croppedBlueCarBinary = self.make_binary_image(blueImage)
@@ -155,9 +120,6 @@ class img_processor:
         #Find connected components
         labelImg = measure.label(binaryImg)
         recImg = img.copy()
-        #Find the expected dimmensions of a license plate
-        # plate_dimensions = (0.3*labelImg.shape[0], 0.6*labelImg.shape[0], 0.04*labelImg.shape[1], 0.12*labelImg.shape[1])
-        # min_height, max_height, min_width, max_width = plate_dimensions
         plate_objects_cordinates = []
         plate_like_objects = []
         regions = []
@@ -167,28 +129,13 @@ class img_processor:
             #if the region is so small then it's likely not a license plate
                 continue
 
-            ##FOLLOWING IS NON-RESTRICTIVE METHOD
             regions.append(region)
             min_row, min_col, max_row, max_col = region.bbox
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             print("I found a rectangle!")
-
-            # ##FOLLOWING IS MORE RESTRICTIVE METHOD
-            # # the bounding box coordinates
-            # min_row, min_col, max_row, max_col = region.bbox
-            # region_height = max_row - min_row
-            # region_width = max_col - min_col
-            # # ensuring that the region identified satisfies the condition of a typical license plate
-            # if region_height >= min_height and region_height <= max_height and region_width >= min_width and region_width <= max_width and region_width > region_height:
-            #     plate_like_objects.append(binaryImg[min_row:max_row,min_col:max_col])
-            #     plate_objects_cordinates.append((min_row, min_col,max_row, max_col))
-            #     cv2.rectangle(img, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
-            #     print("I found a rectangle!")
+        
         cv2.imshow("rectangles",recImg)
         cv2.waitKey(3) 
-        # cv2.imshow("binary",binaryImg)
-        # cv2.waitKey(3)
-
         return regions
 
 
@@ -205,7 +152,7 @@ class img_processor:
     def make_binary_image(self,img):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        threshold_value = threshold_otsu(grayImg) #CHANGE this function throws an error if the greyImg is empty
+        threshold_value = threshold_otsu(grayImg)
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
 
         return binaryImg
