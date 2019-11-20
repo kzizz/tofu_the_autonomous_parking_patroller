@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import cv2
 import datetime
 import operator
+import string
+import tensorflow as tf
+from tensorflow import keras
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -19,6 +22,10 @@ from skimage.io import imread
 from skimage.filters import threshold_otsu
 from skimage import measure
 from skimage.measure import regionprops
+from numpy import loadtxt
+from keras.models import load_model
+
+# load model
 
 
 class img_processor:
@@ -28,6 +35,18 @@ class img_processor:
         self.image_pub = rospy.Publisher("image_topic_2",Image)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
+        # self.model_sub = rospy.Subscriber("readLetters", String, callback)
+        config = tf.ConfigProto(
+            device_count={'GPU': 1},
+            intra_op_parallelism_threads=1,
+            allow_soft_placement=True
+            )
+        config.gpu_options.allow_growth = True
+        config.gpu_options.per_process_gpu_memory_fraction = 0.6
+        session = tf.Session(config=config)
+        keras.backend.set_session(session)
+        self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
+        self.model._make_predict_function()
         #CHANGE this to publishing to CNN:
         #self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
 
@@ -92,8 +111,8 @@ class img_processor:
             else:
                 for region in regions:
                     min_row, min_col, max_row, max_col = region.bbox
-                    print("minimum column")
-                    print(min_col)
+                    # print("minimum column")
+                    # print(min_col)
                     cropped_img = blueImage[min_row-3:max_row+3,min_col-3:max_col+3].copy()
                     numberImages[min_col]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
@@ -101,7 +120,11 @@ class img_processor:
                 sortedNumberImages = sorted(numberImages.keys())
                 print("Number Images")
                 print(sortedNumberImages)
-                print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
+                # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
+                # for i in range(len(sortedNumberImages)):
+                #     value = self.readLetter(numberImages[sortedNumberImages[i]])
+                #     print(value)
+
 
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
                 cv2.imshow("first number",numberImages[sortedNumberImages[0]])
@@ -113,8 +136,21 @@ class img_processor:
                 cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
                 cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
 
-
-        
+    def readLetter(self,img):
+        labels = ['0','1','2','3','4','5','6','7','8','9']
+        labels.extend(list(string.ascii_uppercase))
+        dictionary = {"image" : [] , "vector": [], "label": []}
+        grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        img_aug = np.repeat(grayImg[..., np.newaxis], 3, -1)
+        img_aug = cv2.resize(img_aug,(18,22))
+        cv2.imshow("aug img",img_aug)
+        img_aug = np.expand_dims(img_aug, axis=0)
+        print(img_aug.shape)
+        y_predict = self.model.predict(img_aug)[0]
+        predictVal = max(y_predict)
+        predictedVal_index = np.where(y_predict == predictVal)[0][0]
+        predictedVal = labels[predictedVal_index]
+        return predictedVal
     #find the boundaries of the license plate using connected component analysis
     def boundary_finder(self,img,binaryImg):
         #Find connected components
@@ -159,7 +195,6 @@ class img_processor:
 
 
 def main(args):
-    rospy.init_node('img_processor', anonymous=True) #CHECK : Does this needed to be added to a world.launch file somewhere?
     imgP = img_processor()
     # try:
     rospy.spin()
@@ -168,6 +203,7 @@ def main(args):
     # cv2.destroyAllWindows()
 
 if __name__ == '__main__':
+    rospy.init_node('img_processor', anonymous=True) #CHECK : Does this needed to be added to a world.launch file somewhere?
     main(sys.argv)
 
 
