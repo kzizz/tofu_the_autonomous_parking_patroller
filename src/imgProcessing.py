@@ -9,12 +9,12 @@ import sys
 import rospy
 from geometry_msgs.msg import Twist
 import matplotlib.pyplot as plt
+import time
 import cv2
 import datetime
 import operator
 import string
-import tensorflow as tf
-from tensorflow import keras
+import keras
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -23,7 +23,12 @@ from skimage.filters import threshold_otsu
 from skimage import measure
 from skimage.measure import regionprops
 from numpy import loadtxt
+
 from keras.models import load_model
+from keras import backend
+import tensorflow as tf
+
+
 
 # load model
 
@@ -35,21 +40,24 @@ class img_processor:
         self.image_pub = rospy.Publisher("image_topic_2",Image)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
+        self.time = 0
         # self.model_sub = rospy.Subscriber("readLetters", String, callback)
-        config = tf.ConfigProto(
-            device_count={'GPU': 1},
-            intra_op_parallelism_threads=1,
-            allow_soft_placement=True
-            )
-        config.gpu_options.allow_growth = True
-        config.gpu_options.per_process_gpu_memory_fraction = 0.6
-        session = tf.Session(config=config)
-        keras.backend.set_session(session)
-        self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
-        self.model._make_predict_function()
+        # config = tf.ConfigProto(
+        #     device_count={'GPU': 1},
+        #     intra_op_parallelism_threads=1,
+        #     allow_soft_placement=True
+        #     )
+        # config.gpu_options.allow_growth = True
+        # config.gpu_options.per_process_gpu_memory_fraction = 0.6
+        # self.session = tf.Session(config=config)
+        # keras.backend.set_session(self.session)
+        
+        # self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
+        # # tf.reset_default_graph()
+        # self.model._make_predict_function()
         #CHANGE this to publishing to CNN:
         #self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
-
+        self.counter = 0
     def callback(self,data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -67,36 +75,55 @@ class img_processor:
         #blue for car detection 
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
-
         # define range of blue color in HSV
-        # lower_blue = np.array([110,50,50])
-        # upper_blue = np.array([130,255,255]) 
         lowerBlue = np.array([94,80,2])
         upperBlue = np.array([126,255,255])
+        lowerWhite = np.array([0, 0, 90],dtype = "uint8")
+        upperWhite = np.array([30, 50, 255],dtype = "uint8")
+        # Threshold the HSV image to get only blue colors
+        foundCar = self.lookForCar(hsv)
+        if(foundCar is True):
+            print("found car")
+  
+
+    def lookForCar(self,hsv):
+        isCar = False
+        lowerBlue = np.array([94,80,2])
+        upperBlue = np.array([126,255,255])
+        lowerWhite = np.array([0, 0, 90],dtype = "uint8")
+        upperWhite = np.array([30, 50, 255],dtype = "uint8")
         # Threshold the HSV image to get only blue colors
         # mask = cv2.inRange(hsv, lower_green, upper_green)
         # lowerBlue = np.array([0, 0, 0],dtype = "uint8") 
         # upperBlue = np.array([255,30, 0],dtype = "uint8") #can pick up Parking values
         blueCarMask = cv2.inRange(hsv, lowerBlue, upperBlue)
-        # blueCarMask = cv2.medianBlur(blueCarMask, 5)
-        # blueCarMask = cv2.erode(blueCarMask, None, iterations=2)
+        whiteMask = cv2.inRange(hsv, lowerWhite, upperWhite)
         blueCarOutput = cv2.bitwise_and(hsv, hsv, mask = blueCarMask)
-        cv2.imshow("cropped image",warped_img)
+        whiteCarOutput = cv2.bitwise_and(hsv,hsv, mask = whiteMask)
+        # cv2.imshow("cropped image",warped_img)
         cv2.imshow("blueCarOutput", blueCarOutput)
         cv2.waitKey(3)
-        bluePercentage =float( np.count_nonzero(np.asarray(blueCarOutput))) / float(np.count_nonzero(np.asarray(warped_img)))
-        # print("blue percentage")
-        # print(bluePercentage)
+        cv2.imshow("whiteCarOutput",whiteCarOutput)
+        cv2.waitKey(3)
+        bluePercentage =np.divide(float(np.count_nonzero(blueCarOutput)),float(np.count_nonzero(hsv)))
+        whitePercentage =np.divide(float(np.count_nonzero(whiteCarOutput)),float(np.count_nonzero(hsv)))
+        # if(self.counter % 5 == 0):
+        #     print("blue percentage")
+        #     print(bluePercentage)
+        #     print("white percentage")
+        #     print(whitePercentage)
         # if(bluePercentage > 0.09 and bluePercentage < 0.135):
-        if(bluePercentage > 0.1 and bluePercentage < 0.2):
+        if(bluePercentage > 0.09 and bluePercentage < 0.5 and whitePercentage > 0.1):
             print("blue percentage of the car")
             print(bluePercentage)
             print("found a car")
             cv2.imshow("car",blueCarOutput)
-            blueCarBinary = self.make_binary_image(blueCarOutput)
-            carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
-            self.findLicensePlate(carCroppedImgBlue)
-            
+            isCar = True
+            # blueCarBinary = self.make_binary_image(blueCarOutput)
+            # carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
+            # self.findLicensePlate(carCroppedImgBlue)
+        self.counter += 1 
+        return isCar
 
     def findLicensePlate(self,blueImage): 
             croppedBlueCarBinary = self.make_binary_image(blueImage)
@@ -127,14 +154,14 @@ class img_processor:
 
 
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-                cv2.imshow("first number",numberImages[sortedNumberImages[0]])
-                cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-                cv2.imshow("second number",numberImages[sortedNumberImages[1]])
-                cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
-                cv2.imshow("third number",numberImages[sortedNumberImages[2]])
-                cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
-                cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
-                cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+                # cv2.imshow("first number",numberImages[sortedNumberImages[0]])
+                # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+                # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
+                # cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
+                # cv2.imshow("third number",numberImages[sortedNumberImages[2]])
+                # cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
+                # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
+                # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
 
     def readLetter(self,img):
         labels = ['0','1','2','3','4','5','6','7','8','9']
@@ -146,10 +173,12 @@ class img_processor:
         cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
         print(img_aug.shape)
-        y_predict = self.model.predict(img_aug)[0]
-        predictVal = max(y_predict)
-        predictedVal_index = np.where(y_predict == predictVal)[0][0]
-        predictedVal = labels[predictedVal_index]
+        with self.session.as_default():
+            with self.session.graph.as_default():
+                y_predict = self.model.predict(img_aug)[0]
+                predictVal = max(y_predict)
+                predictedVal_index = np.where(y_predict == predictVal)[0][0]
+                predictedVal = labels[predictedVal_index]
         return predictedVal
     #find the boundaries of the license plate using connected component analysis
     def boundary_finder(self,img,binaryImg):
@@ -170,8 +199,8 @@ class img_processor:
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             print("I found a rectangle!")
         
-        cv2.imshow("rectangles",recImg)
-        cv2.waitKey(3) 
+        # cv2.imshow("rectangles",recImg)
+        # cv2.waitKey(3) 
         return regions
 
 
