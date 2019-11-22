@@ -68,21 +68,12 @@ class img_processor:
         IMAGE_H = rows
         IMAGE_W = cols
         #crop image to probable height of license plate
-        # warped_img = cv_image[rows-400:cols-400]
         warped_img = cv_image[rows-300:rows,0:300]
-        
-        #color masks and cropping     
-        #blue for car detection 
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
-        # define range of blue color in HSV
-        lowerBlue = np.array([94,80,2])
-        upperBlue = np.array([126,255,255])
-        lowerWhite = np.array([0, 0, 90],dtype = "uint8")
-        upperWhite = np.array([30, 50, 255],dtype = "uint8")
         # Threshold the HSV image to get only blue colors
         foundCar = self.lookForCar(hsv)
-        if(foundCar is True):
+         if(foundCar is True):
             print("found car")
   
 
