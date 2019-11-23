@@ -113,14 +113,14 @@ class img_processor:
             print("found a car")
             # cv2.imshow("car",blueCarOutput)
             isCar = True
-            # blueCarBinary = self.make_binary_image(blueCarOutput)
+            # blueCarBinary = self.make_binary_image(blueCarOutput,0)
             # carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
             # self.findLicensePlate(carCroppedImgBlue)
         self.counter += 1 
         return isCar
 
     def findLicensePlate(self,blueImage): 
-            croppedBlueCarBinary = self.make_binary_image(blueImage)
+            croppedBlueCarBinary = self.make_binary_image(blueImage,0)
             regions = self.boundary_finder(blueImage,croppedBlueCarBinary)
             #Define an empty dictionary to associate image with the order it apears on license
             numberImages = {}
@@ -162,14 +162,14 @@ class img_processor:
     def find_parking_number(self, img):
         #Define mask
         lower = np.array([0,0,0])
-        upper = np.array([0,0,150])
+        upper = np.array([0,0,95])
         numMask = cv2.inRange(img, lower, upper)
         maskOutput = cv2.bitwise_and(img,img, mask = numMask)
         maskOutput = cv2.cvtColor(maskOutput, cv2.COLOR_HSV2BGR)
         #maskOutput = cv2.bitwise_not(maskOutput)
         cv2.imshow("ParkingNumView",maskOutput)
         #Make image binary 
-        binary = self.make_binary_image(maskOutput)
+        binary = self.make_binary_image(maskOutput,0)
         cv2.imshow("Binary Parking", binary)
         #find bounding boxes on parking numbers
         regions = self.boundary_finder(maskOutput,binary)
@@ -178,22 +178,37 @@ class img_processor:
 
         if(len(regions) == 0):
             print("no parking num found")
-        elif(len(regions) != 2):
-            print("could not catch all the numbers or this is not a parking number")
+        # elif(len(regions) != 2):
+        #     print("could not catch all the numbers or this is not a parking number")
         else:
             for region in regions:
                 min_row, min_col, max_row, max_col = region.bbox
-                print("minimum column")
-                print(min_col)
-                cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
-                numberImages[min_col]= cropped_img
+                #Filter the regions based on size
+                width = max_col-min_col
+                height = max_row-min_row
+                print("width:")
+                print(max_col-min_col)
+                print("height:")
+                print(max_row-min_row)
+
+                # print("minimum column")
+                # print(min_col)
+                if(width > 25 and height > 25):
+                    cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                    numberImages[min_col]= cropped_img
             
-            #sort the images based on their min_col
-            sortedNumberImages = sorted(numberImages.keys())
-            # print("Number Images")
-            # print(sortedNumberImages)
-            print("P")
-            print(numberImages[sortedNumberImages[0]])
+            #Check num of acceptable regions
+            if (len(numberImages)!= 2):
+                "Problem detecting parking num!"
+            else:
+                #sort the images based on their min_col
+                sortedNumberImages = sorted(numberImages.keys())
+                print("Found the right number of regions!!")
+                # print("Number Images")
+                # print(sortedNumberImages)
+
+        print("Number of regions")
+        print(len(numberImages))
 
         #     #timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
         #     cv2.imshow("second char",numberImages[sortedNumberImages[1]])
@@ -259,11 +274,11 @@ class img_processor:
         row_start,row_end = mask1.argmax(),m-mask1[::-1].argmax()
         return img[row_start:row_end,col_start:col_end]
 
-    def make_binary_image(self,img):
+    def make_binary_image(self,img,threshAdjustment):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
         cv2.imshow("grayImg",grayImg)
-        threshold_value = threshold_otsu(grayImg)-30
+        threshold_value = threshold_otsu(grayImg)-threshAdjustment
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
 
         return binaryImg
