@@ -69,7 +69,10 @@ class img_processor:
         IMAGE_W = cols
         #crop image to probable height of license plate
         warped_img = cv_image[rows-300:rows,0:300]
+        #crop image to probably height of parking number
+        parking_img = cv_image[rows-300:rows-225,0:300]
         cv2.imshow("View", warped_img) #CHANGE
+        cv2.imshow("Parking View", parking_img)
         cv2.waitKey(3)
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
@@ -77,7 +80,7 @@ class img_processor:
         foundCar = self.lookForCar(hsv)
         if(foundCar is True):
             print("found car")
-            parkingNum = self.find_parking_number(hsv)
+            parkingNum = self.find_parking_number(parking_img)
   
 
     def lookForCar(self,hsv):
@@ -113,14 +116,14 @@ class img_processor:
             print("found a car")
             # cv2.imshow("car",blueCarOutput)
             isCar = True
-            # blueCarBinary = self.make_binary_image(blueCarOutput,0)
+            # blueCarBinary = self.make_binary_image(blueCarOutput)
             # carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
             # self.findLicensePlate(carCroppedImgBlue)
         self.counter += 1 
         return isCar
 
     def findLicensePlate(self,blueImage): 
-            croppedBlueCarBinary = self.make_binary_image(blueImage,0)
+            croppedBlueCarBinary = self.make_binary_image(blueImage)
             regions = self.boundary_finder(blueImage,croppedBlueCarBinary)
             #Define an empty dictionary to associate image with the order it apears on license
             numberImages = {}
@@ -157,29 +160,33 @@ class img_processor:
                 # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
 
-    #Inputs:self, and a cropped hsv image of the of Tofu's view where a car could be located (left side)
+    #Inputs:self, and a cropped image of the of Tofu's view where a parking num could be located (left side)
     #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
     def find_parking_number(self, img):
         #Define mask
-        lower = np.array([0,0,0])
-        upper = np.array([0,0,95])
-        numMask = cv2.inRange(img, lower, upper)
-        maskOutput = cv2.bitwise_and(img,img, mask = numMask)
-        maskOutput = cv2.cvtColor(maskOutput, cv2.COLOR_HSV2BGR)
-        #maskOutput = cv2.bitwise_not(maskOutput)
-        cv2.imshow("ParkingNumView",maskOutput)
-        #Make image binary 
-        binary = self.make_binary_image(maskOutput,0)
-        cv2.imshow("Binary Parking", binary)
+        # lower = np.array([0,0,0])
+        # upper = np.array([0,0,95])
+        # numMask = cv2.inRange(img, lower, upper)
+        # maskOutput = cv2.bitwise_and(img,img, mask = numMask)
+        # maskOutput = cv2.cvtColor(maskOutput, cv2.COLOR_HSV2BGR)
+        # #maskOutput = cv2.bitwise_not(maskOutput)
+        # cv2.imshow("ParkingNumView",maskOutput)
+        # #Make image binary 
+        # binary = self.make_binary_image(maskOutput)
+        # cv2.imshow("Binary Parking", binary)
+        maskOutput = cv2.bitwise_not(self.make_binary_image(img))
+        binary = maskOutput
         #find bounding boxes on parking numbers
         regions = self.boundary_finder(maskOutput,binary)
         #Define an empty dictionary to associate image with the order it apears on license
         numberImages = {}
+        cv2.imshow("Binary Parking", maskOutput)
+        
 
         if(len(regions) == 0):
             print("no parking num found")
-        # elif(len(regions) != 2):
-        #     print("could not catch all the numbers or this is not a parking number")
+        elif(len(regions) != 2):
+            print("could not catch all the numbers or this is not a parking number")
         else:
             for region in regions:
                 min_row, min_col, max_row, max_col = region.bbox
@@ -190,28 +197,18 @@ class img_processor:
                 print(max_col-min_col)
                 print("height:")
                 print(max_row-min_row)
+                cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                numberImages[min_col]= cropped_img
 
-                # print("minimum column")
-                # print(min_col)
-                if(width > 25 and height > 25):
-                    cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
-                    numberImages[min_col]= cropped_img
-            
-            #Check num of acceptable regions
-            if (len(numberImages)!= 2):
-                "Problem detecting parking num!"
-            else:
-                #sort the images based on their min_col
-                sortedNumberImages = sorted(numberImages.keys())
-                print("Found the right number of regions!!")
-                # print("Number Images")
-                # print(sortedNumberImages)
+            sortedNumberImages = sorted(numberImages.keys())
+            print("Found the right number of regions!!")
+            timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+            cv2.imshow("second char",numberImages[sortedNumberImages[1]])
 
         print("Number of regions")
         print(len(numberImages))
 
-        #     #timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-        #     cv2.imshow("second char",numberImages[sortedNumberImages[1]])
+        
         #     # cv2.imshow("second char",numberImages[sortedNumberImages[1]])
         #     # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
         #     # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
@@ -249,6 +246,7 @@ class img_processor:
         plate_like_objects = []
         regions = []
         # regionprops creates a list of properties of all the labelled regions
+        #Krysten - changed this because area of 400 was too small for parking numbers
         for region in regionprops(labelImg):
             if region.area < 50 or region.area > 1000:
             #if the region is so small then it's likely not a license plate
@@ -274,11 +272,11 @@ class img_processor:
         row_start,row_end = mask1.argmax(),m-mask1[::-1].argmax()
         return img[row_start:row_end,col_start:col_end]
 
-    def make_binary_image(self,img,threshAdjustment):
+    def make_binary_image(self,img):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
         cv2.imshow("grayImg",grayImg)
-        threshold_value = threshold_otsu(grayImg)-threshAdjustment
+        threshold_value = threshold_otsu(grayImg)
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
 
         return binaryImg
