@@ -69,12 +69,15 @@ class img_processor:
         IMAGE_W = cols
         #crop image to probable height of license plate
         warped_img = cv_image[rows-300:rows,0:300]
+        cv2.imshow("View", warped_img) #CHANGE
+        cv2.waitKey(3)
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
         # Threshold the HSV image to get only blue colors
         foundCar = self.lookForCar(hsv)
-         if(foundCar is True):
+        if(foundCar is True):
             print("found car")
+            parkingNum = self.find_parking_number(hsv)
   
 
     def lookForCar(self,hsv):
@@ -92,10 +95,10 @@ class img_processor:
         blueCarOutput = cv2.bitwise_and(hsv, hsv, mask = blueCarMask)
         whiteCarOutput = cv2.bitwise_and(hsv,hsv, mask = whiteMask)
         # cv2.imshow("cropped image",warped_img)
-        cv2.imshow("blueCarOutput", blueCarOutput)
-        cv2.waitKey(3)
-        cv2.imshow("whiteCarOutput",whiteCarOutput)
-        cv2.waitKey(3)
+        # cv2.imshow("blueCarOutput", blueCarOutput)
+        # cv2.waitKey(3)
+        # cv2.imshow("whiteCarOutput",whiteCarOutput)
+        # cv2.waitKey(3)
         bluePercentage =np.divide(float(np.count_nonzero(blueCarOutput)),float(np.count_nonzero(hsv)))
         whitePercentage =np.divide(float(np.count_nonzero(whiteCarOutput)),float(np.count_nonzero(hsv)))
         # if(self.counter % 5 == 0):
@@ -108,7 +111,7 @@ class img_processor:
             print("blue percentage of the car")
             print(bluePercentage)
             print("found a car")
-            cv2.imshow("car",blueCarOutput)
+            # cv2.imshow("car",blueCarOutput)
             isCar = True
             # blueCarBinary = self.make_binary_image(blueCarOutput)
             # carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
@@ -124,8 +127,8 @@ class img_processor:
 
             if(len(regions) == 0):
                 print("no license plates found")
-            elif(len(regions) != 4):
-                print("could not catch all the numbers or this is not a license plate")
+            # elif(len(regions) != 4):
+            #     print("could not catch all the numbers or this is not a license plate")
             else:
                 for region in regions:
                     min_row, min_col, max_row, max_col = region.bbox
@@ -154,6 +157,57 @@ class img_processor:
                 # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
 
+    #Inputs:self, and a cropped hsv image of the of Tofu's view where a car could be located (left side)
+    #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
+    def find_parking_number(self, img):
+        #Define mask
+        lower = np.array([0,0,0])
+        upper = np.array([0,0,150])
+        numMask = cv2.inRange(img, lower, upper)
+        maskOutput = cv2.bitwise_and(img,img, mask = numMask)
+        maskOutput = cv2.cvtColor(maskOutput, cv2.COLOR_HSV2BGR)
+        #maskOutput = cv2.bitwise_not(maskOutput)
+        cv2.imshow("ParkingNumView",maskOutput)
+        #Make image binary 
+        binary = self.make_binary_image(maskOutput)
+        cv2.imshow("Binary Parking", binary)
+        #find bounding boxes on parking numbers
+        regions = self.boundary_finder(maskOutput,binary)
+        #Define an empty dictionary to associate image with the order it apears on license
+        numberImages = {}
+
+        if(len(regions) == 0):
+            print("no parking num found")
+        elif(len(regions) != 2):
+            print("could not catch all the numbers or this is not a parking number")
+        else:
+            for region in regions:
+                min_row, min_col, max_row, max_col = region.bbox
+                print("minimum column")
+                print(min_col)
+                cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                numberImages[min_col]= cropped_img
+            
+            #sort the images based on their min_col
+            sortedNumberImages = sorted(numberImages.keys())
+            # print("Number Images")
+            # print(sortedNumberImages)
+            print("P")
+            print(numberImages[sortedNumberImages[0]])
+
+        #     #timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+        #     cv2.imshow("second char",numberImages[sortedNumberImages[1]])
+        #     # cv2.imshow("second char",numberImages[sortedNumberImages[1]])
+        #     # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+        #     # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
+        #     # cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
+        #     # cv2.imshow("third number",numberImages[sortedNumberImages[2]])
+        #     # cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
+        #     # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
+        #     # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+        #return numberImages[sortedNumberImages[0]]
+    
+    
     def readLetter(self,img):
         labels = ['0','1','2','3','4','5','6','7','8','9']
         labels.extend(list(string.ascii_uppercase))
@@ -181,7 +235,7 @@ class img_processor:
         regions = []
         # regionprops creates a list of properties of all the labelled regions
         for region in regionprops(labelImg):
-            if region.area < 50 or region.area > 400:
+            if region.area < 50 or region.area > 1000:
             #if the region is so small then it's likely not a license plate
                 continue
 
@@ -190,8 +244,8 @@ class img_processor:
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             print("I found a rectangle!")
         
-        # cv2.imshow("rectangles",recImg)
-        # cv2.waitKey(3) 
+        cv2.imshow("rectangles",recImg)
+        cv2.waitKey(3) 
         return regions
 
 
@@ -208,7 +262,8 @@ class img_processor:
     def make_binary_image(self,img):
         #turn image into grayscale and binary
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        threshold_value = threshold_otsu(grayImg)
+        cv2.imshow("grayImg",grayImg)
+        threshold_value = threshold_otsu(grayImg)-30
         binaryImg = cv2.threshold(grayImg, threshold_value, 255, cv2.THRESH_BINARY)[1]
 
         return binaryImg
