@@ -72,9 +72,11 @@ class img_processor:
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
         # Threshold the HSV image to get only blue colors
-        foundCar = self.lookForCar(hsv)
-         if(foundCar is True):
+        foundCar, blueCropped = self.lookForCar(hsv)
+        if(foundCar is True):
             print("found car")
+            self.findLicensePlate(blueCropped)
+
   
 
     def lookForCar(self,hsv):
@@ -84,7 +86,6 @@ class img_processor:
         lowerWhite = np.array([0, 0, 90],dtype = "uint8")
         upperWhite = np.array([30, 50, 255],dtype = "uint8")
         # Threshold the HSV image to get only blue colors
-        # mask = cv2.inRange(hsv, lower_green, upper_green)
         # lowerBlue = np.array([0, 0, 0],dtype = "uint8") 
         # upperBlue = np.array([255,30, 0],dtype = "uint8") #can pick up Parking values
         blueCarMask = cv2.inRange(hsv, lowerBlue, upperBlue)
@@ -98,6 +99,7 @@ class img_processor:
         cv2.waitKey(3)
         bluePercentage =np.divide(float(np.count_nonzero(blueCarOutput)),float(np.count_nonzero(hsv)))
         whitePercentage =np.divide(float(np.count_nonzero(whiteCarOutput)),float(np.count_nonzero(hsv)))
+        croppedBlueImage = 0
         # if(self.counter % 5 == 0):
         #     print("blue percentage")
         #     print(bluePercentage)
@@ -110,11 +112,11 @@ class img_processor:
             print("found a car")
             cv2.imshow("car",blueCarOutput)
             isCar = True
-            # blueCarBinary = self.make_binary_image(blueCarOutput)
-            # carCroppedImgBlue=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
-            # self.findLicensePlate(carCroppedImgBlue)
+            blueCarBinary = self.make_binary_image(blueCarOutput)
+            croppedBlueImage=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
+            cv2.imshow("carCroppedImgBlue", croppedBlueImage)
         self.counter += 1 
-        return isCar
+        return isCar,croppedBlueImage
 
     def findLicensePlate(self,blueImage): 
             croppedBlueCarBinary = self.make_binary_image(blueImage)
@@ -125,6 +127,8 @@ class img_processor:
             if(len(regions) == 0):
                 print("no license plates found")
             elif(len(regions) != 4):
+                for reg in regions:
+                    print(reg.area)
                 print("could not catch all the numbers or this is not a license plate")
             else:
                 for region in regions:
@@ -190,8 +194,8 @@ class img_processor:
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             print("I found a rectangle!")
         
-        # cv2.imshow("rectangles",recImg)
-        # cv2.waitKey(3) 
+        cv2.imshow("rectangles",recImg)
+        cv2.waitKey(3) 
         return regions
 
 
