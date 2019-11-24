@@ -66,6 +66,7 @@ class img_processor:
         IMAGE_W = cols
         #crop image to probable height of license plate
         warped_img = cv_image[rows-300:rows,0:300]
+        parking_img = cv_image[rows-300:rows-225,0:300]
         # Convert BGR to HSV
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
         # Threshold the HSV image to get only blue colors
@@ -73,6 +74,7 @@ class img_processor:
         if(foundCar is True):
             print("found car")
             self.findLicensePlate(blueCropped)
+            self.find_parking_number(parking_img)
 
   
 
@@ -131,7 +133,7 @@ class img_processor:
                     max_col = validRegion[3]
                     # print("minimum column")
                     # print(min_col)
-                    cropped_img = blueImage[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                    cropped_img = blueImage[min_row-3:max_row+3,min_col:max_col].copy()
                     numberImages[(min_col + max_col) / 2]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
                 #sort the images based on their min_col
@@ -141,10 +143,11 @@ class img_processor:
 
                 # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
                 for i in range(2):
-                    # print(sortedNumberImages[i])
+                    print(sortedNumberImages[i])
                     value = self.readLetter(numberImages[sortedNumberImages[i]])
                     print(value)
                 for i in range (2,4):
+                    print(sortedNumberImages[i])
                     value = self.readNumber(numberImages[sortedNumberImages[i]])
                     print(value)   
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
@@ -229,6 +232,44 @@ class img_processor:
                 predictedVal_index = np.where(y_predict == predictVal)[0][0]
                 predictedVal = labels[predictedVal_index]
         return predictedVal
+    #Inputs:self, and a cropped image of the of Tofu's view where a parking num could be located (left side)
+    #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
+    def find_parking_number(self, img):
+        maskOutput = cv2.bitwise_not(self.make_binary_image(img))
+        binary = maskOutput
+        #find bounding boxes on parking numbers
+        regions = self.boundary_finder(maskOutput,binary)
+        #Define an empty dictionary to associate image with the order it apears on license
+        numberImages = {}
+        cv2.imshow("Binary Parking", maskOutput)
+        
+
+        if(len(regions) == 0):
+            print("no parking num found")
+        elif(len(regions) != 2):
+            print("could not catch all the numbers or this is not a parking number")
+        else:
+            for region in regions:
+                min_row, min_col, max_row, max_col = region.bbox
+                #Filter the regions based on size
+                width = max_col-min_col
+                height = max_row-min_row
+                print("width:")
+                print(max_col-min_col)
+                print("height:")
+                print(max_row-min_row)
+                cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
+                numberImages[min_col]= cropped_img
+
+            sortedNumberImages = sorted(numberImages.keys())
+            print("Found the right number of regions!!")
+            timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+            cv2.imshow("second char",numberImages[sortedNumberImages[1]])
+            #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+        print("Number of regions")
+        print(len(numberImages))
+
+        #return numberImages[sortedNumberImages[0]]
     #find the boundaries of the license plate using connected component analysis
     def boundary_finder(self,img,binaryImg):
         #Find connected components
@@ -239,7 +280,7 @@ class img_processor:
         regions = []
         # regionprops creates a list of properties of all the labelled regions
         for region in regionprops(labelImg):
-            if region.area < 90 or region.area > 400:
+            if region.area < 90 or region.area > 1000:
             #if the region is so small then it's likely not a license plate
                 continue
 
