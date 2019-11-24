@@ -29,10 +29,6 @@ from keras import backend
 import tensorflow as tf
 
 
-
-# load model
-
-
 class img_processor:
 
     def __init__(self):
@@ -41,23 +37,24 @@ class img_processor:
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         self.time = 0
-        # self.model_sub = rospy.Subscriber("readLetters", String, callback)
-        # config = tf.ConfigProto(
-        #     device_count={'GPU': 1},
-        #     intra_op_parallelism_threads=1,
-        #     allow_soft_placement=True
-        #     )
-        # config.gpu_options.allow_growth = True
-        # config.gpu_options.per_process_gpu_memory_fraction = 0.6
-        # self.session = tf.Session(config=config)
-        # keras.backend.set_session(self.session)
+        self.counter = 0
+        config = tf.ConfigProto(
+            device_count={'GPU': 1},
+            intra_op_parallelism_threads=1,
+            allow_soft_placement=True
+            )
+        config.gpu_options.allow_growth = True
+        config.gpu_options.per_process_gpu_memory_fraction = 0.6
+        self.session = tf.Session(config=config)
+        keras.backend.set_session(self.session)
         
-        # self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
-        # # tf.reset_default_graph()
-        # self.model._make_predict_function()
+        self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
+        # tf.reset_default_graph()
+        self.model._make_predict_function()
+        self.numberModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/numberModel.h5')
+        self.numberModel._make_predict_function()
         #CHANGE this to publishing to CNN:
         #self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
-        self.counter = 0
     def callback(self,data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -85,9 +82,7 @@ class img_processor:
         upperBlue = np.array([126,255,255])
         lowerWhite = np.array([0, 0, 90],dtype = "uint8")
         upperWhite = np.array([30, 50, 255],dtype = "uint8")
-        # Threshold the HSV image to get only blue colors
-        # lowerBlue = np.array([0, 0, 0],dtype = "uint8") 
-        # upperBlue = np.array([255,30, 0],dtype = "uint8") #can pick up Parking values
+        # Threshold the HSV image to get only blue colors 
         blueCarMask = cv2.inRange(hsv, lowerBlue, upperBlue)
         whiteMask = cv2.inRange(hsv, lowerWhite, upperWhite)
         blueCarOutput = cv2.bitwise_and(hsv, hsv, mask = blueCarMask)
@@ -118,59 +113,118 @@ class img_processor:
         self.counter += 1 
         return isCar,croppedBlueImage
 
+    # returns images to feed to the neural network in the right order
     def findLicensePlate(self,blueImage): 
             croppedBlueCarBinary = self.make_binary_image(blueImage)
             regions = self.boundary_finder(blueImage,croppedBlueCarBinary)
             #Define an empty dictionary to associate image with the order it apears on license
             numberImages = {}
-
-            if(len(regions) == 0):
+            validRegions = self.getValidRegions(regions)
+            orderedImages = []
+            if(len(validRegions) == 0):
                 print("no license plates found")
-            elif(len(regions) != 4):
-                for reg in regions:
-                    print(reg.area)
-                print("could not catch all the numbers or this is not a license plate")
             else:
-                for region in regions:
-                    min_row, min_col, max_row, max_col = region.bbox
+                for validRegion in validRegions:
+                    min_row = validRegion[0]
+                    max_row = validRegion[1]
+                    min_col = validRegion[2]
+                    max_col = validRegion[3]
                     # print("minimum column")
                     # print(min_col)
                     cropped_img = blueImage[min_row-3:max_row+3,min_col-3:max_col+3].copy()
-                    numberImages[min_col]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
+                    numberImages[(min_col + max_col) / 2]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
                 #sort the images based on their min_col
                 sortedNumberImages = sorted(numberImages.keys())
-                print("Number Images")
-                print(sortedNumberImages)
+                # print("Number Images")
+                # print(sortedNumberImages)
+
                 # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
-                # for i in range(len(sortedNumberImages)):
-                #     value = self.readLetter(numberImages[sortedNumberImages[i]])
-                #     print(value)
-
-
+                for i in range(2):
+                    # print(sortedNumberImages[i])
+                    value = self.readLetter(numberImages[sortedNumberImages[i]])
+                    print(value)
+                for i in range (2,4):
+                    value = self.readNumber(numberImages[sortedNumberImages[i]])
+                    print(value)   
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-                # cv2.imshow("first number",numberImages[sortedNumberImages[0]])
+                cv2.imshow("first number",numberImages[sortedNumberImages[0]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-                # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
+                cv2.imshow("second number",numberImages[sortedNumberImages[1]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
-                # cv2.imshow("third number",numberImages[sortedNumberImages[2]])
+                cv2.imshow("third number",numberImages[sortedNumberImages[2]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
-                # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
+                cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
                 # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
-
+    # checks the validity of the regions that could be numbers and letters on the license plate
+    #returns regions in the format of min_row, max_row, min_col, max_col
+    def getValidRegions (self,regions):
+        validRegions = []
+        if(len(regions) == 0):
+                print("no license plates found")
+        elif(len(regions) is 2 or len(regions) is 3):
+            print("length of region is 2 or 3")
+            for region in regions:
+                min_row, min_col, max_row, max_col = region.bbox
+                width = abs(max_col - min_col)
+                height = abs(max_row - min_row)
+                aspectRatio = float(width) / float(height)
+                print(aspectRatio)
+                if aspectRatio > 2:
+                    # two letters or numbers in one line, we should split it
+                    region1 = [min_row , max_row, min_col, min_col + width / 2 -1 ]
+                    region2 = [min_row, max_row, min_col + width / 2 + 1, max_col]
+                    validRegions.extend([region1,region2])
+                else:
+                    reformatRegion = [min_row, max_row, min_col, max_col]
+                    validRegions.append(reformatRegion)
+            if(len(validRegions) !=4):
+                validRegions = [] #not a license plate no valid region
+                print("not a valid region")
+                
+        elif(len(regions) is 4):
+                for region in regions:
+                    min_row, min_col, max_row, max_col = region.bbox
+                    validRegion = [min_row,max_row, min_col, max_col]
+                    validRegions.append(validRegion)
+        return validRegions
     def readLetter(self,img):
         labels = ['0','1','2','3','4','5','6','7','8','9']
         labels.extend(list(string.ascii_uppercase))
         dictionary = {"image" : [] , "vector": [], "label": []}
+        # print(img.shape)
         grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
         img_aug = np.repeat(grayImg[..., np.newaxis], 3, -1)
-        img_aug = cv2.resize(img_aug,(18,22))
+        try:
+            img_aug = cv2.resize(img_aug,(18,22))
+        except(e):
+            print(e)
         cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
         print(img_aug.shape)
         with self.session.as_default():
             with self.session.graph.as_default():
                 y_predict = self.model.predict(img_aug)[0]
+                predictVal = max(y_predict)
+                predictedVal_index = np.where(y_predict == predictVal)[0][0]
+                predictedVal = labels[predictedVal_index]
+        return predictedVal
+    def readNumber(self,img):
+        labels = ['0','1','2','3','4','5','6','7','8','9']
+        dictionary = {"image" : [] , "vector": [], "label": []}
+        # print(img.shape)
+        grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        img_aug = np.repeat(grayImg[..., np.newaxis], 3, -1)
+        try:
+            img_aug = cv2.resize(img_aug,(18,22))
+        except(e):
+            print(e)
+        cv2.imshow("aug img",img_aug)
+        img_aug = np.expand_dims(img_aug, axis=0)
+        print(img_aug.shape)
+        with self.session.as_default():
+            with self.session.graph.as_default():
+                y_predict = self.numberModel.predict(img_aug)[0]
                 predictVal = max(y_predict)
                 predictedVal_index = np.where(y_predict == predictVal)[0][0]
                 predictedVal = labels[predictedVal_index]
@@ -185,14 +239,14 @@ class img_processor:
         regions = []
         # regionprops creates a list of properties of all the labelled regions
         for region in regionprops(labelImg):
-            if region.area < 50 or region.area > 400:
+            if region.area < 90 or region.area > 400:
             #if the region is so small then it's likely not a license plate
                 continue
 
             regions.append(region)
             min_row, min_col, max_row, max_col = region.bbox
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
-            print("I found a rectangle!")
+            # print("I found a rectangle!")
         
         cv2.imshow("rectangles",recImg)
         cv2.waitKey(3) 
