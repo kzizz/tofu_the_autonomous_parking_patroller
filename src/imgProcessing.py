@@ -48,7 +48,7 @@ class img_processor:
         self.session = tf.Session(config=config)
         keras.backend.set_session(self.session)
         
-        self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/modelWithRealData.h5')
+        self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/letterModel.h5')
         # tf.reset_default_graph()
         self.model._make_predict_function()
         self.numberModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/numberModel.h5')
@@ -103,10 +103,12 @@ class img_processor:
         #     print("white percentage")
         #     print(whitePercentage)
         # if(bluePercentage > 0.09 and bluePercentage < 0.135):
-        if(bluePercentage > 0.09 and bluePercentage < 0.5 and whitePercentage > 0.1):
+        if(bluePercentage > 0.09 and bluePercentage < 0.4 and whitePercentage > 0.12):
             print("blue percentage of the car")
             print(bluePercentage)
-            print("found a car")
+            print("white percentage of the car")
+            print(whitePercentage)
+            # print("found a car")
             cv2.imshow("car",blueCarOutput)
             isCar = True
             blueCarBinary = self.make_binary_image(blueCarOutput)
@@ -143,22 +145,22 @@ class img_processor:
 
                 # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
                 for i in range(2):
-                    print(sortedNumberImages[i])
+                    # print(sortedNumberImages[i])
                     value = self.readLetter(numberImages[sortedNumberImages[i]])
                     print(value)
                 for i in range (2,4):
-                    print(sortedNumberImages[i])
+                    # print(sortedNumberImages[i])
                     value = self.readNumber(numberImages[sortedNumberImages[i]])
                     print(value)   
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
                 cv2.imshow("first number",numberImages[sortedNumberImages[0]])
-                # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
                 cv2.imshow("second number",numberImages[sortedNumberImages[1]])
-                # cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
+                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
                 cv2.imshow("third number",numberImages[sortedNumberImages[2]])
-                # cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
+                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
                 cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
-                # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
     # checks the validity of the regions that could be numbers and letters on the license plate
     #returns regions in the format of min_row, max_row, min_col, max_col
     def getValidRegions (self,regions):
@@ -192,7 +194,7 @@ class img_processor:
                     validRegions.append(validRegion)
         return validRegions
     def readLetter(self,img):
-        labels = ['0','1','2','3','4','5','6','7','8','9']
+        labels = []
         labels.extend(list(string.ascii_uppercase))
         dictionary = {"image" : [] , "vector": [], "label": []}
         # print(img.shape)
@@ -204,7 +206,7 @@ class img_processor:
             print(e)
         cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
-        print(img_aug.shape)
+        #print(img_aug.shape)
         with self.session.as_default():
             with self.session.graph.as_default():
                 y_predict = self.model.predict(img_aug)[0]
@@ -224,7 +226,7 @@ class img_processor:
             print(e)
         cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
-        print(img_aug.shape)
+        # print(img_aug.shape)
         with self.session.as_default():
             with self.session.graph.as_default():
                 y_predict = self.numberModel.predict(img_aug)[0]
@@ -254,20 +256,26 @@ class img_processor:
                 #Filter the regions based on size
                 width = max_col-min_col
                 height = max_row-min_row
-                print("width:")
-                print(max_col-min_col)
-                print("height:")
-                print(max_row-min_row)
+                # print("width:")
+                # print(max_col-min_col)
+                # print("height:")
+                # print(max_row-min_row)
                 cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
                 numberImages[min_col]= cropped_img
 
             sortedNumberImages = sorted(numberImages.keys())
-            print("Found the right number of regions!!")
+            # print("Found the right number of regions!!")
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
             cv2.imshow("second char",numberImages[sortedNumberImages[1]])
+
+            timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+            cv2.imwrite("/home/fizzer/competitionCNN/realData/parkingNumbers"+timestamp+".png",numberImages[sortedNumberImages[1]])
+            print("parking number:")
+            parkingNumber = self.readNumber(numberImages[sortedNumberImages[1]])
+            print(parkingNumber)
             #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-        print("Number of regions")
-        print(len(numberImages))
+        # print("Number of regions")
+        # print(len(numberImages))
 
         #return numberImages[sortedNumberImages[0]]
     #find the boundaries of the license plate using connected component analysis
@@ -280,7 +288,7 @@ class img_processor:
         regions = []
         # regionprops creates a list of properties of all the labelled regions
         for region in regionprops(labelImg):
-            if region.area < 90 or region.area > 1000:
+            if region.area < 100 or region.area > 1000:
             #if the region is so small then it's likely not a license plate
                 continue
 
@@ -289,8 +297,8 @@ class img_processor:
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
             # print("I found a rectangle!")
         
-        cv2.imshow("rectangles",recImg)
-        cv2.waitKey(3) 
+        # cv2.imshow("rectangles",recImg)
+        # cv2.waitKey(3) 
         return regions
 
 
