@@ -70,7 +70,7 @@ class img_processor:
         #crop image to probable height of license plate
         warped_img = cv_image[rows-300:rows,0:300]
         #crop image to probably height of parking number
-        parking_img = cv_image[rows-300:rows-225,0:300]
+        parking_img = cv_image[rows-300:rows-200,0:300]
         cv2.imshow("View", warped_img) #CHANGE
         cv2.imshow("Parking View", parking_img)
         cv2.waitKey(3)
@@ -163,21 +163,11 @@ class img_processor:
     #Inputs:self, and a cropped image of the of Tofu's view where a parking num could be located (left side)
     #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
     def find_parking_number(self, img):
-        #Define mask
-        # lower = np.array([0,0,0])
-        # upper = np.array([0,0,95])
-        # numMask = cv2.inRange(img, lower, upper)
-        # maskOutput = cv2.bitwise_and(img,img, mask = numMask)
-        # maskOutput = cv2.cvtColor(maskOutput, cv2.COLOR_HSV2BGR)
-        # #maskOutput = cv2.bitwise_not(maskOutput)
-        # cv2.imshow("ParkingNumView",maskOutput)
-        # #Make image binary 
-        # binary = self.make_binary_image(maskOutput)
-        # cv2.imshow("Binary Parking", binary)
         maskOutput = cv2.bitwise_not(self.make_binary_image(img))
         binary = maskOutput
         #find bounding boxes on parking numbers
-        regions = self.boundary_finder(maskOutput,binary)
+        regions = self.boundary_finder(maskOutput,binary) #TRY: Drawing rectangles on non-binary image so we can actually see whats happening
+        #TRY: bitwise NOT to get rid of license plate
         #Define an empty dictionary to associate image with the order it apears on license
         numberImages = {}
         cv2.imshow("Binary Parking", maskOutput)
@@ -186,7 +176,8 @@ class img_processor:
         if(len(regions) == 0):
             print("no parking num found")
         elif(len(regions) != 2):
-            print("could not catch all the numbers or this is not a parking number")
+            print("could not catch all the numbers or this is not a parking number.  Number of regions found:")
+            print(len(regions))
         else:
             for region in regions:
                 min_row, min_col, max_row, max_col = region.bbox
@@ -204,19 +195,10 @@ class img_processor:
             print("Found the right number of regions!!")
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
             cv2.imshow("second char",numberImages[sortedNumberImages[1]])
-
+            #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
         print("Number of regions")
         print(len(numberImages))
 
-        
-        #     # cv2.imshow("second char",numberImages[sortedNumberImages[1]])
-        #     # cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-        #     # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
-        #     # cv2.imwrite("licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
-        #     # cv2.imshow("third number",numberImages[sortedNumberImages[2]])
-        #     # cv2.imwrite("licenseLetters/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
-        #     # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
-        #     # cv2.imwrite("licenseLetters/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
         #return numberImages[sortedNumberImages[0]]
     
     
