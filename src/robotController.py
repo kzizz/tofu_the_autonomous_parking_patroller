@@ -196,7 +196,7 @@ class robot_controller:
                 # print(abs(score - self.prevPedScore))
                 diffScore = abs(score - self.prevPedScore) 
                 self.scores.append(diffScore)
-                if(time.time() - self.pedTimer > 4.5):
+                if(time.time() - self.pedTimer > 5):
                     lastThreeDiff = self.scores[len(self.scores)-6:]
                     averageDiff = sum(lastThreeDiff) / len(lastThreeDiff)
                     print("average diff")

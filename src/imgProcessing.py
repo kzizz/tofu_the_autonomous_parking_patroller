@@ -28,6 +28,10 @@ from keras.models import load_model
 from keras import backend
 import tensorflow as tf
 
+teamName = "TOFU"
+teamPassword = "veg1234"
+initialMessage = teamName + "," + teamPassword + ",0,0000"
+
 
 class img_processor:
 
@@ -36,6 +40,10 @@ class img_processor:
         self.image_pub = rospy.Publisher("image_topic_2",Image)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
+        self.platePublisher = rospy.Publisher('/license_plate',String)
+        # initialize publishing
+        self.platePublisher.publish(initialMessage)
+        self.prevParkingNumber = 2
         self.time = 0
         self.counter = 0
         config = tf.ConfigProto(
@@ -71,13 +79,24 @@ class img_processor:
         hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
         # Threshold the HSV image to get only blue colors
         foundCar, blueCropped = self.lookForCar(hsv)
+        message = teamName + "," + teamPassword + ","
         if(foundCar is True):
             print("found car")
-            self.findLicensePlate(blueCropped)
-            self.find_parking_number(parking_img)
-
-  
-
+            gotLicencePlate, licensePlate = self.findLicensePlate(blueCropped)
+            gotParkingNumber, parkingNumber = self.find_parking_number(parking_img)
+            if(gotLicencePlate is True):
+                if(gotParkingNumber is True):
+                    message+=parkingNumber
+                    message+=","
+                    message += licensePlate
+                    self.prevParkingNumber = int(parkingNumber)
+                else:
+                    parkingNumberGuess = self.prevParkingNumber + 1
+                    self.prevParkingNumber = parkingNumberGuess
+                    message += str(parkingNumberGuess)
+                    message += ","
+                    message += licensePlate
+                self.platePublisher.publish(message)
     def lookForCar(self,hsv):
         isCar = False
         lowerBlue = np.array([94,80,2])
@@ -119,6 +138,8 @@ class img_processor:
 
     # returns images to feed to the neural network in the right order
     def findLicensePlate(self,blueImage): 
+            gotLicencePlate = False
+            returnVal = ""
             croppedBlueCarBinary = self.make_binary_image(blueImage)
             regions = self.boundary_finder(blueImage,croppedBlueCarBinary)
             #Define an empty dictionary to associate image with the order it apears on license
@@ -147,11 +168,14 @@ class img_processor:
                 for i in range(2):
                     # print(sortedNumberImages[i])
                     value = self.readLetter(numberImages[sortedNumberImages[i]])
+                    returnVal += value
                     print(value)
                 for i in range (2,4):
                     # print(sortedNumberImages[i])
                     value = self.readNumber(numberImages[sortedNumberImages[i]])
-                    print(value)   
+                    returnVal += value
+                    print(value)
+                gotLicencePlate = True   
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
                 cv2.imshow("first number",numberImages[sortedNumberImages[0]])
                 cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
@@ -161,6 +185,7 @@ class img_processor:
                 cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
                 cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
                 cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+            return gotLicencePlate,returnVal
     # checks the validity of the regions that could be numbers and letters on the license plate
     #returns regions in the format of min_row, max_row, min_col, max_col
     def getValidRegions (self,regions):
@@ -237,6 +262,8 @@ class img_processor:
     #Inputs:self, and a cropped image of the of Tofu's view where a parking num could be located (left side)
     #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
     def find_parking_number(self, img):
+        parkingNumber = ""
+        gotParkingNumber = False
         maskOutput = cv2.bitwise_not(self.make_binary_image(img))
         binary = maskOutput
         #find bounding boxes on parking numbers
@@ -249,8 +276,10 @@ class img_processor:
         if(len(regions) == 0):
             print("no parking num found")
         elif(len(regions) != 2):
-            print("could not catch all the numbers or this is not a parking number")
+            print("could not catch all the numbers or this is not a parking number.Length:")
+            print(len(regions))
         else:
+            gotParkingNumber = True
             for region in regions:
                 min_row, min_col, max_row, max_col = region.bbox
                 #Filter the regions based on size
@@ -271,12 +300,12 @@ class img_processor:
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
             cv2.imwrite("/home/fizzer/competitionCNN/realData/parkingNumbers"+timestamp+".png",numberImages[sortedNumberImages[1]])
             print("parking number:")
-            parkingNumber = self.readNumber(numberImages[sortedNumberImages[1]])
+            parkingNumber += self.readNumber(numberImages[sortedNumberImages[1]])
             print(parkingNumber)
             #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
         # print("Number of regions")
         # print(len(numberImages))
-
+        return gotParkingNumber,parkingNumber
         #return numberImages[sortedNumberImages[0]]
     #find the boundaries of the license plate using connected component analysis
     def boundary_finder(self,img,binaryImg):
