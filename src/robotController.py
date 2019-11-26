@@ -92,7 +92,7 @@ class robot_controller:
             
         #check if we can see the red line indicating a cross walk
         redPixelCount = np.count_nonzero(redOutput)
-        print(redPixelCount)
+        # print(redPixelCount)
         cv2.imshow("redOutput",redOutput)
         cv2.waitKey(3)
         #Find center of mass for initialization & driving
@@ -167,7 +167,7 @@ class robot_controller:
                 self.state = "initializing"
 
         if (self.state == "driving"): 
-            print("Driving...")
+            # print("Driving...")
             self.pid(offset) 
             if(redPixelCount < 20000):
                     self.state = "driving"
@@ -226,8 +226,8 @@ class robot_controller:
                 cY = int(M["m01"]/ M["m00"])
                 middlePixel = cols/2
                 offset = cX - middlePixel + self.targetOffset
-                print("Offset")
-                print(offset)
+                # print("Offset")
+                # print(offset)
             self.pid(offset)
             print("On crosswalk...")
             if (redPixelCount <20000):

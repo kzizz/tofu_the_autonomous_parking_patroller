@@ -57,10 +57,11 @@ class img_processor:
         keras.backend.set_session(self.session)
         
         self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/letterModel.h5')
-        # tf.reset_default_graph()
         self.model._make_predict_function()
         self.numberModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/numberModel.h5')
         self.numberModel._make_predict_function()
+        self.parkingModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/parkingModel.h5')
+        self.parkingModel._make_predict_function()
         #CHANGE this to publishing to CNN:
         #self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
     def callback(self,data):
@@ -165,26 +166,30 @@ class img_processor:
                 # print(sortedNumberImages)
 
                 # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
+                timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
                 for i in range(2):
                     # print(sortedNumberImages[i])
                     value = self.readLetter(numberImages[sortedNumberImages[i]])
                     returnVal += value
                     print(value)
+                    cv2.imwrite("/home/fizzer/competitionCNN/realData/labeledLetters/"+value + "_" + timestamp+"_1.png",numberImages[sortedNumberImages[i]])
                 for i in range (2,4):
                     # print(sortedNumberImages[i])
                     value = self.readNumber(numberImages[sortedNumberImages[i]])
                     returnVal += value
                     print(value)
+                    cv2.imwrite("/home/fizzer/competitionCNN/realData/labeledNumbers/"+value +"_"+timestamp+"_1.png",numberImages[sortedNumberImages[i]])
+
                 gotLicencePlate = True   
-                timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+                
                 cv2.imshow("first number",numberImages[sortedNumberImages[0]])
-                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
+                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
                 cv2.imshow("second number",numberImages[sortedNumberImages[1]])
-                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
+                # cv2.imwrite("/home/fizzer/competitionCNN/src/tofu_img_process/src/licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
                 cv2.imshow("third number",numberImages[sortedNumberImages[2]])
-                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
+                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
                 cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
-                cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
             return gotLicencePlate,returnVal
     # checks the validity of the regions that could be numbers and letters on the license plate
     #returns regions in the format of min_row, max_row, min_col, max_col
@@ -259,6 +264,26 @@ class img_processor:
                 predictedVal_index = np.where(y_predict == predictVal)[0][0]
                 predictedVal = labels[predictedVal_index]
         return predictedVal
+    def readParkingNumber(self,img):
+        labels = ['0','1','2','3','4','5','6','7','8','9']
+        dictionary = {"image" : [] , "vector": [], "label": []}
+        # print(img.shape)
+        grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        img_aug = np.repeat(grayImg[..., np.newaxis], 3, -1)
+        try:
+            img_aug = cv2.resize(img_aug,(18,22))
+        except(e):
+            print(e)
+        cv2.imshow("aug img",img_aug)
+        img_aug = np.expand_dims(img_aug, axis=0)
+        # print(img_aug.shape)
+        with self.session.as_default():
+            with self.session.graph.as_default():
+                y_predict = self.parkingModel.predict(img_aug)[0]
+                predictVal = max(y_predict)
+                predictedVal_index = np.where(y_predict == predictVal)[0][0]
+                predictedVal = labels[predictedVal_index]
+        return predictedVal
     #Inputs:self, and a cropped image of the of Tofu's view where a parking num could be located (left side)
     #Outputs: returns a cropped image of the parking number, to be submitted to the CNN
     def find_parking_number(self, img):
@@ -298,9 +323,9 @@ class img_processor:
             cv2.imshow("second char",numberImages[sortedNumberImages[1]])
 
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-            cv2.imwrite("/home/fizzer/competitionCNN/realData/parkingNumbers"+timestamp+".png",numberImages[sortedNumberImages[1]])
+            # cv2.imwrite("/home/fizzer/competitionCNN/realData/parkingNumbers"+timestamp+".png",numberImages[sortedNumberImages[1]])
             print("parking number:")
-            parkingNumber += self.readNumber(numberImages[sortedNumberImages[1]])
+            parkingNumber += self.readParkingNumber(numberImages[sortedNumberImages[1]])
             print(parkingNumber)
             #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
         # print("Number of regions")
