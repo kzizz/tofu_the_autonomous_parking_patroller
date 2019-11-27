@@ -5,7 +5,6 @@ import time
 import roslib
 import numpy as np
 import math
-#roslib.load_manifest('my_package')
 import sys
 import rospy
 from geometry_msgs.msg import Twist
@@ -20,8 +19,6 @@ from skimage.measure import compare_ssim
 
 
 class robot_controller:
-    #This will be our state machine
-
     def __init__(self):
         self.image_pub = rospy.Publisher("image_topic_2",Image)
         self.bridge = CvBridge()
@@ -31,7 +28,7 @@ class robot_controller:
         self.sawCrosswalk = False
         self.atCrosswalk = False
         self.offCrosswalk = True
-        self.state =  "initializing" #CHANGE "initializing"
+        self.state =  "initializing" 
         self.GO_STRAIGHT = self.targetOffset
         self.TURN_LEFT = 0
         self.initDoneStraight = False
@@ -92,9 +89,6 @@ class robot_controller:
             
         #check if we can see the red line indicating a cross walk
         redPixelCount = np.count_nonzero(redOutput)
-        # print(redPixelCount)
-        cv2.imshow("redOutput",redOutput)
-        cv2.waitKey(3)
         #Find center of mass for initialization & driving
         M = cv2.moments(img)
         middlePixel = 0
@@ -105,7 +99,7 @@ class robot_controller:
             #Can't make equal to the target offset here, otherwise init won't work
             if(self.state == "initializing"):
                 print ("m00=0, offset 0")
-                offset = 0 #CHECK IF THIS WORKS
+                offset = 0 
             else:
                 print ("m00=0, offset t.o")
                 offset = self.targetOffset 
@@ -118,12 +112,6 @@ class robot_controller:
         #Draw circles on image for troubleshooting
         cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
-        # cv2.imshow("Image window", redOutput)
-        # cv2.waitKey(3)
-        # cv2.imshow("contour image",cv_image)
-        # cv2.waitKey(3)
-        # cv2.imshow("crosswalk view",crosswalkImage)
-        # cv2.imshow("whiteOutput", whiteOutput)
 
         #State machine for driving
         if(self.state == "initializing"):
@@ -136,9 +124,8 @@ class robot_controller:
             print("Initializing")
             print("White Percentage:")
             print(initWhitePercentage)
-            # cv2.imshow("init white output",initWhiteOutput)
-            # cv2.waitKey(3)
-            #DONT CHANGE THIS VAL: If white percentage is less than 10%, we haven't gone straight long enough and should keep going
+
+            #If white percentage is less than 3%, we haven't gone straight long enough and should keep going
             if (initWhitePercentage < 0.03 and self.initDoneStraight == False):
                 print("Going straight to init")
                 self.pid(self.GO_STRAIGHT)
@@ -160,7 +147,7 @@ class robot_controller:
                 else:
                     print("Turning to init")
                     self.pid(self.TURN_LEFT)
-
+            #modify outgoing states accordingly 
             if (initComplete == True):
                 self.state = "driving"
             else:
@@ -191,7 +178,8 @@ class robot_controller:
             pedImage = cv2.cvtColor(cv_image[rows-300:rows-200,350:cols-350],cv2.COLOR_BGR2GRAY)
             if (self.pedCounter % 3 == 0):
                 (score,diff) = compare_ssim(pedImage,self.prevPedView, full=True)
-                # cv2.imshow("prevPedView",self.prevPedView)
+                cv2.imshow("prevPedView",self.prevPedView)
+                cv2.waitKey(3)
                 # print("difference in score")
                 # print(abs(score - self.prevPedScore))
                 diffScore = abs(score - self.prevPedScore) 
@@ -209,8 +197,8 @@ class robot_controller:
             # pedWhitePercentage = np.divide(float(np.count_nonzero(pedWhiteMask)) , float(np.count_nonzero(pedImage)))            
             # print("Waiting for pedestrian...")
 
-            # cv2.imshow("PedView",pedImage)
-            # cv2.waitKey(3)
+            cv2.imshow("PedView",pedImage)
+            cv2.waitKey(3)
 
         elif (self.state == "on_crosswalk"):
             self.pedTimer = time.time() #resetting the timer for pedestrian
