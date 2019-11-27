@@ -92,8 +92,7 @@ class img_processor:
                     message += licensePlate
                     self.prevParkingNumber = int(parkingNumber)
                 else:
-                    parkingNumberGuess = self.prevParkingNumber + 1
-                    self.prevParkingNumber = parkingNumberGuess
+                    parkingNumberGuess = self.prevParkingNumber
                     message += str(parkingNumberGuess)
                     message += ","
                     message += licensePlate
@@ -161,7 +160,7 @@ class img_processor:
                     numberImages[(min_col + max_col) / 2]= (cv2.cvtColor(cropped_img,cv2.COLOR_HSV2BGR))
                 
                 #sort the images based on their min_col
-                sortedNumberImages = sorted(numberImages.keys())
+                sortedNumberImages = sorted(sorted(numberImages.keys()))
                 # print("Number Images")
                 # print(sortedNumberImages)
 
@@ -317,7 +316,7 @@ class img_processor:
                 cropped_img = img[min_row-3:max_row+3,min_col-3:max_col+3].copy()
                 numberImages[min_col]= cropped_img
 
-            sortedNumberImages = sorted(numberImages.keys())
+            sortedNumberImages = sorted(sorted(numberImages.keys()))
             # print("Found the right number of regions!!")
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
             cv2.imshow("second char",numberImages[sortedNumberImages[1]])
