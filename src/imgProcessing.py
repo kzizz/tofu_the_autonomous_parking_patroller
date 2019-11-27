@@ -41,11 +41,13 @@ class img_processor:
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         self.platePublisher = rospy.Publisher('/license_plate',String)
-        # initialize publishing
+        # initialize publishing to license plate topic
         self.platePublisher.publish(initialMessage)
+        #initialize global variables
         self.prevParkingNumber = 2
         self.time = 0
         self.counter = 0
+        # initializing CNN models
         config = tf.ConfigProto(
             device_count={'GPU': 1},
             intra_op_parallelism_threads=1,
@@ -55,15 +57,12 @@ class img_processor:
         config.gpu_options.per_process_gpu_memory_fraction = 0.6
         self.session = tf.Session(config=config)
         keras.backend.set_session(self.session)
-        
         self.model = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/letterModel.h5')
         self.model._make_predict_function()
         self.numberModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/numberModel.h5')
         self.numberModel._make_predict_function()
         self.parkingModel = load_model('/home/fizzer/enph353_ws/src/tofu_img_process/src/parkingModel.h5')
         self.parkingModel._make_predict_function()
-        #CHANGE this to publishing to CNN:
-        #self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
     def callback(self,data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -83,8 +82,8 @@ class img_processor:
         message = teamName + "," + teamPassword + ","
         if(foundCar is True):
             print("found car")
-            gotLicencePlate, licensePlate = self.findLicensePlate(blueCropped)
             gotParkingNumber, parkingNumber = self.find_parking_number(parking_img)
+            gotLicencePlate, licensePlate = self.findLicensePlate(blueCropped)
             if(gotLicencePlate is True):
                 if(gotParkingNumber is True):
                     message+=parkingNumber
@@ -109,30 +108,20 @@ class img_processor:
         blueCarOutput = cv2.bitwise_and(hsv, hsv, mask = blueCarMask)
         whiteCarOutput = cv2.bitwise_and(hsv,hsv, mask = whiteMask)
         # cv2.imshow("cropped image",warped_img)
-        cv2.imshow("blueCarOutput", blueCarOutput)
-        cv2.waitKey(3)
-        cv2.imshow("whiteCarOutput",whiteCarOutput)
-        cv2.waitKey(3)
+        # cv2.imshow("blueCarOutput", blueCarOutput)
+        # cv2.waitKey(3)
+        # cv2.imshow("whiteCarOutput",whiteCarOutput)
+        # cv2.waitKey(3)
         bluePercentage =np.divide(float(np.count_nonzero(blueCarOutput)),float(np.count_nonzero(hsv)))
         whitePercentage =np.divide(float(np.count_nonzero(whiteCarOutput)),float(np.count_nonzero(hsv)))
         croppedBlueImage = 0
-        # if(self.counter % 5 == 0):
-        #     print("blue percentage")
-        #     print(bluePercentage)
-        #     print("white percentage")
-        #     print(whitePercentage)
-        # if(bluePercentage > 0.09 and bluePercentage < 0.135):
         if(bluePercentage > 0.09 and bluePercentage < 0.4 and whitePercentage > 0.12):
-            print("blue percentage of the car")
-            print(bluePercentage)
-            print("white percentage of the car")
-            print(whitePercentage)
-            # print("found a car")
-            cv2.imshow("car",blueCarOutput)
+            # cv2.imshow("car",blueCarOutput)
             isCar = True
             blueCarBinary = self.make_binary_image(blueCarOutput)
             croppedBlueImage=self.crop_image_only_outside_using_mask(blueCarBinary,blueCarOutput,tol=0)
-            cv2.imshow("carCroppedImgBlue", croppedBlueImage)
+            # cv2.imshow("detectedCar", croppedBlueImage)
+            # cv2.waitKey(3)
         self.counter += 1 
         return isCar,croppedBlueImage
 
@@ -166,29 +155,21 @@ class img_processor:
 
                 # print("%s: %s"% (sortedNumberImages[0],numberImages[sortedNumberImages[0]] ))
                 timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+                print("license plate:")
                 for i in range(2):
-                    # print(sortedNumberImages[i])
                     value = self.readLetter(numberImages[sortedNumberImages[i]])
                     returnVal += value
                     print(value)
-                    cv2.imwrite("/home/fizzer/competitionCNN/realData/labeledLetters/"+value + "_" + timestamp+"_1.png",numberImages[sortedNumberImages[i]])
                 for i in range (2,4):
-                    # print(sortedNumberImages[i])
                     value = self.readNumber(numberImages[sortedNumberImages[i]])
                     returnVal += value
                     print(value)
-                    cv2.imwrite("/home/fizzer/competitionCNN/realData/labeledNumbers/"+value +"_"+timestamp+"_1.png",numberImages[sortedNumberImages[i]])
 
                 gotLicencePlate = True   
-                
-                cv2.imshow("first number",numberImages[sortedNumberImages[0]])
-                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-                cv2.imshow("second number",numberImages[sortedNumberImages[1]])
-                # cv2.imwrite("/home/fizzer/competitionCNN/src/tofu_img_process/src/licenseLetters/"+timestamp+"_2.png",numberImages[sortedNumberImages[1]])
-                cv2.imshow("third number",numberImages[sortedNumberImages[2]])
-                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_3.png",numberImages[sortedNumberImages[2]])
-                cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
-                # cv2.imwrite("/home/fizzer/enph353_ws/src/tofu_img_process/src/licenseNumbers/"+timestamp+"_4.png",numberImages[sortedNumberImages[3]])
+                # cv2.imshow("first number",numberImages[sortedNumberImages[0]])
+                # cv2.imshow("second number",numberImages[sortedNumberImages[1]])
+                # cv2.imshow("third number",numberImages[sortedNumberImages[2]])
+                # cv2.imshow("fourth number",numberImages[sortedNumberImages[3]])
             return gotLicencePlate,returnVal
     # checks the validity of the regions that could be numbers and letters on the license plate
     #returns regions in the format of min_row, max_row, min_col, max_col
@@ -197,13 +178,13 @@ class img_processor:
         if(len(regions) == 0):
                 print("no license plates found")
         elif(len(regions) is 2 or len(regions) is 3):
-            print("length of region is 2 or 3")
+            # print("length of region is 2 or 3")
             for region in regions:
                 min_row, min_col, max_row, max_col = region.bbox
                 width = abs(max_col - min_col)
                 height = abs(max_row - min_row)
                 aspectRatio = float(width) / float(height)
-                print(aspectRatio)
+                # print(aspectRatio)
                 if aspectRatio > 2:
                     # two letters or numbers in one line, we should split it
                     region1 = [min_row , max_row, min_col, min_col + width / 2 -1 ]
@@ -214,7 +195,7 @@ class img_processor:
                     validRegions.append(reformatRegion)
             if(len(validRegions) !=4):
                 validRegions = [] #not a license plate no valid region
-                print("not a valid region")
+                print("couldn't catch all the numbers on the license plate")
                 
         elif(len(regions) is 4):
                 for region in regions:
@@ -233,7 +214,6 @@ class img_processor:
             img_aug = cv2.resize(img_aug,(18,22))
         except(e):
             print(e)
-        cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
         #print(img_aug.shape)
         with self.session.as_default():
@@ -253,7 +233,6 @@ class img_processor:
             img_aug = cv2.resize(img_aug,(18,22))
         except(e):
             print(e)
-        cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
         # print(img_aug.shape)
         with self.session.as_default():
@@ -273,7 +252,6 @@ class img_processor:
             img_aug = cv2.resize(img_aug,(18,22))
         except(e):
             print(e)
-        cv2.imshow("aug img",img_aug)
         img_aug = np.expand_dims(img_aug, axis=0)
         # print(img_aug.shape)
         with self.session.as_default():
@@ -294,7 +272,6 @@ class img_processor:
         regions = self.boundary_finder(maskOutput,binary)
         #Define an empty dictionary to associate image with the order it apears on license
         numberImages = {}
-        cv2.imshow("Binary Parking", maskOutput)
         
 
         if(len(regions) == 0):
@@ -317,18 +294,12 @@ class img_processor:
                 numberImages[min_col]= cropped_img
 
             sortedNumberImages = sorted(sorted(numberImages.keys()))
-            # print("Found the right number of regions!!")
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-            cv2.imshow("second char",numberImages[sortedNumberImages[1]])
-
+            # cv2.imshow("second char",numberImages[sortedNumberImages[1]])
             timestamp = str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
-            # cv2.imwrite("/home/fizzer/competitionCNN/realData/parkingNumbers"+timestamp+".png",numberImages[sortedNumberImages[1]])
             print("parking number:")
             parkingNumber += self.readParkingNumber(numberImages[sortedNumberImages[1]])
             print(parkingNumber)
-            #cv2.imwrite("licenseLetters/"+timestamp+"_1.png",numberImages[sortedNumberImages[0]])
-        # print("Number of regions")
-        # print(len(numberImages))
         return gotParkingNumber,parkingNumber
         #return numberImages[sortedNumberImages[0]]
     #find the boundaries of the license plate using connected component analysis
@@ -348,8 +319,7 @@ class img_processor:
             regions.append(region)
             min_row, min_col, max_row, max_col = region.bbox
             rectBorder = cv2.rectangle(recImg, (min_col, min_row), (max_col, max_row), (0,255,0), 2)
-            # print("I found a rectangle!")
-        
+            #print("I found a rectangle!")
         # cv2.imshow("rectangles",recImg)
         # cv2.waitKey(3) 
         return regions
